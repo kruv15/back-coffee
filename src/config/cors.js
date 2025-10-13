@@ -14,7 +14,7 @@ const corsConfig = {
     if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`❌ Origen no permitido: ${origin}`));
+      callback(new Error(`Origen no permitido: ${origin}`));
     }
   },
   credentials: true,
