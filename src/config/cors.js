@@ -39,7 +39,7 @@ export const validateCorsConfig = () => {
   const allowed = config.CORS_ORIGIN
     ? config.CORS_ORIGIN.split(",").map((o) => o.trim())
     : ["*"];
-  console.log("🌐 CORS_ORIGIN:", allowed.join(", "));
+  console.log("CORS_ORIGIN:", allowed.join(", "));
   return corsConfig;
 };
 
