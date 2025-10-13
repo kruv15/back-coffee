@@ -29,9 +29,8 @@ const corsConfig = {
     "Cache-Control",
   ],
   exposedHeaders: ["X-Total-Count", "X-Page-Count"],
-  maxAge: 86400, // 24 horas
+  maxAge: 86400,
   optionsSuccessStatus: 200,
 };
 
-// Exportar configuración directamente
 export default corsConfig;
