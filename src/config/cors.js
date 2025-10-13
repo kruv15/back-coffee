@@ -33,4 +33,14 @@ const corsConfig = {
   optionsSuccessStatus: 200,
 };
 
+// Función para validar configuración CORS
+export const validateCorsConfig = () => {
+  // (opcional) logs útiles para depurar
+  const allowed = config.CORS_ORIGIN
+    ? config.CORS_ORIGIN.split(",").map((o) => o.trim())
+    : ["*"];
+  console.log("🌐 CORS_ORIGIN:", allowed.join(", "));
+  return corsConfig;
+};
+
 export default corsConfig;
