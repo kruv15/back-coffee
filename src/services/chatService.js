@@ -1,5 +1,5 @@
-import { MensajeModel } from "../models/MensajeSchema.js"
-import { AsuntoModel } from "../models/AsuntoSchema.js"
+import { MensajeModel } from "../models/Mensaje.js"
+import { AsuntoModel } from "../models/Asunto.js"
 
 class ChatService {
   /**
