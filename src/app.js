@@ -10,6 +10,8 @@ import usuarioRoutes from "./routes/usuarioRoutes.js"
 import productoRoutes from "./routes/productoRoutes.js"
 import pedidoRoutes from "./routes/pedidoRoutes.js"
 import corsRoutes from "./routes/corsRoutes.js"
+// Importar rutas de chat
+import chatRoutes from "./routes/chatRoutes.js"
 
 // Importar middlewares
 import errorHandler from "./middlewares/errorHandler.js"
@@ -61,6 +63,7 @@ app.use("/api/usuarios", usuarioRoutes)
 app.use("/api/productos", productoRoutes)
 app.use("/api/pedidos", pedidoRoutes)
 app.use("/api/cors", corsRoutes)
+app.use("/api/chat", chatRoutes)
 
 // Ruta de salud para verificar que el servidor funciona
 app.get("/health", (req, res) => {
@@ -81,7 +84,7 @@ app.get("/", (req, res) => {
 })
 
 // Manejo de rutas no encontradas
-app.use(/.*/, (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: "Ruta no encontrada",
