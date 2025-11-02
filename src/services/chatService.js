@@ -1,5 +1,6 @@
 import { MensajeModel } from "../models/Mensaje.js"
 import { AsuntoModel } from "../models/Asunto.js"
+import Usuario from "../models/Usuario.js"
 
 class ChatService {
   /**
@@ -252,9 +253,321 @@ class ChatService {
       console.error("[CHAT] Error limpiando historial:", error.message)
     }
   }
+
+  /**
+   * Obtener todas las conversaciones activas con información del usuario
+   * @param {string} tipoChat - 'ventas', 'atencion_cliente' o 'todos'
+   * @returns {Array} Array de conversaciones con info del usuario
+   */
+  async obtenerConversacionesActivas(tipoChat = "todos") {
+    try {
+      console.log(`[CHAT] Obteniendo conversaciones activas: ${tipoChat}`)
+
+      let conversaciones = []
+
+      // Obtener conversaciones de ventas
+      if (tipoChat === "ventas" || tipoChat === "todos") {
+        const ventasConversaciones = await this.obtenerConversacionesVentas()
+        conversaciones = [...conversaciones, ...ventasConversaciones]
+      }
+
+      // Obtener conversaciones de atención al cliente
+      if (tipoChat === "atencion_cliente" || tipoChat === "todos") {
+        const atencionConversaciones = await this.obtenerConversacionesAtencionCliente()
+        conversaciones = [...conversaciones, ...atencionConversaciones]
+      }
+
+      // Ordenar por último mensaje
+      conversaciones.sort((a, b) => new Date(b.ultimoMensaje.timestamp) - new Date(a.ultimoMensaje.timestamp))
+
+      console.log(`[CHAT] ${conversaciones.length} conversaciones activas encontradas`)
+
+      return conversaciones
+    } catch (error) {
+      console.error("[CHAT] Error obteniendo conversaciones activas:", error.message)
+      return []
+    }
+  }
+
+  /**
+   * Obtener conversaciones de ventas activas
+   * @returns {Array} Array de conversaciones de ventas
+   */
+  async obtenerConversacionesVentas() {
+    try {
+      // Obtener usuarios únicos que tienen mensajes de ventas
+      const usuariosConMensajes = await MensajeModel.distinct("usuarioId", {
+        tipoChat: "ventas",
+      })
+
+      const conversaciones = []
+
+      for (const usuarioId of usuariosConMensajes) {
+        // Obtener información del usuario
+        const usuario = await Usuario.findById(usuarioId).select("nombreUsr apellidoUsr emailUsr celUsr").lean()
+
+        if (!usuario) continue
+
+        // Obtener último mensaje
+        const ultimoMensaje = await MensajeModel.findOne({
+          usuarioId,
+          tipoChat: "ventas",
+        })
+          .sort({ timestamp: -1 })
+          .lean()
+
+        // Contar mensajes no leídos del cliente
+        const mensajesNoLeidos = await MensajeModel.countDocuments({
+          usuarioId,
+          tipoChat: "ventas",
+          tipo: "cliente",
+          leido: false,
+        })
+
+        // Contar total de mensajes
+        const totalMensajes = await MensajeModel.countDocuments({
+          usuarioId,
+          tipoChat: "ventas",
+        })
+
+        conversaciones.push({
+          usuarioId,
+          tipoChat: "ventas",
+          asuntoId: null,
+          usuario: {
+            nombre: `${usuario.nombreUsr} ${usuario.apellidoUsr}`,
+            email: usuario.emailUsr,
+            celular: usuario.celUsr,
+          },
+          ultimoMensaje: {
+            contenido: ultimoMensaje.contenido,
+            tipo: ultimoMensaje.tipo,
+            timestamp: ultimoMensaje.timestamp,
+          },
+          mensajesNoLeidos,
+          totalMensajes,
+          activo: true,
+        })
+      }
+
+      return conversaciones
+    } catch (error) {
+      console.error("[CHAT] Error obteniendo conversaciones de ventas:", error.message)
+      return []
+    }
+  }
+
+  /**
+   * Obtener conversaciones de atención al cliente activas
+   * @returns {Array} Array de conversaciones de atención al cliente
+   */
+  async obtenerConversacionesAtencionCliente() {
+    try {
+      // Obtener asuntos abiertos
+      const asuntosAbiertos = await AsuntoModel.find({ estado: "abierto" }).sort({ timestamp: -1 }).lean()
+
+      const conversaciones = []
+
+      for (const asunto of asuntosAbiertos) {
+        // Obtener información del usuario
+        const usuario = await Usuario.findById(asunto.usuarioId).select("nombreUsr apellidoUsr emailUsr celUsr").lean()
+
+        if (!usuario) continue
+
+        // Obtener último mensaje del asunto
+        const ultimoMensaje = await MensajeModel.findOne({
+          usuarioId: asunto.usuarioId,
+          tipoChat: "atencion_cliente",
+          asuntoId: asunto._id.toString(),
+        })
+          .sort({ timestamp: -1 })
+          .lean()
+
+        // Contar mensajes no leídos del cliente
+        const mensajesNoLeidos = await MensajeModel.countDocuments({
+          usuarioId: asunto.usuarioId,
+          tipoChat: "atencion_cliente",
+          asuntoId: asunto._id.toString(),
+          tipo: "cliente",
+          leido: false,
+        })
+
+        // Contar total de mensajes
+        const totalMensajes = await MensajeModel.countDocuments({
+          usuarioId: asunto.usuarioId,
+          tipoChat: "atencion_cliente",
+          asuntoId: asunto._id.toString(),
+        })
+
+        conversaciones.push({
+          usuarioId: asunto.usuarioId,
+          tipoChat: "atencion_cliente",
+          asuntoId: asunto._id.toString(),
+          asunto: {
+            id: asunto._id,
+            titulo: asunto.titulo,
+            descripcion: asunto.descripcion,
+            prioridad: asunto.prioridad,
+            fechaApertura: asunto.fechaApertura,
+          },
+          usuario: {
+            nombre: `${usuario.nombreUsr} ${usuario.apellidoUsr}`,
+            email: usuario.emailUsr,
+            celular: usuario.celUsr,
+          },
+          ultimoMensaje: ultimoMensaje
+            ? {
+                contenido: ultimoMensaje.contenido,
+                tipo: ultimoMensaje.tipo,
+                timestamp: ultimoMensaje.timestamp,
+              }
+            : null,
+          mensajesNoLeidos,
+          totalMensajes,
+          activo: true,
+        })
+      }
+
+      return conversaciones
+    } catch (error) {
+      console.error("[CHAT] Error obteniendo conversaciones de atención al cliente:", error.message)
+      return []
+    }
+  }
+
+  /**
+   * Obtener asuntos pendientes con información del usuario
+   * @returns {Array} Array de asuntos con info del usuario
+   */
+  async obtenerAsuntosPendientesConUsuario() {
+    try {
+      const asuntos = await AsuntoModel.find({ estado: "abierto" }).sort({ timestamp: -1 }).lean()
+
+      const asuntosConUsuario = []
+
+      for (const asunto of asuntos) {
+        const usuario = await Usuario.findById(asunto.usuarioId).select("nombreUsr apellidoUsr emailUsr celUsr").lean()
+
+        if (!usuario) continue
+
+        // Contar mensajes no leídos
+        const mensajesNoLeidos = await MensajeModel.countDocuments({
+          usuarioId: asunto.usuarioId,
+          tipoChat: "atencion_cliente",
+          asuntoId: asunto._id.toString(),
+          tipo: "cliente",
+          leido: false,
+        })
+
+        asuntosConUsuario.push({
+          id: asunto._id,
+          usuarioId: asunto.usuarioId,
+          titulo: asunto.titulo,
+          descripcion: asunto.descripcion,
+          estado: asunto.estado,
+          prioridad: asunto.prioridad,
+          fechaApertura: asunto.fechaApertura,
+          timestamp: asunto.timestamp,
+          usuario: {
+            nombre: `${usuario.nombreUsr} ${usuario.apellidoUsr}`,
+            email: usuario.emailUsr,
+            celular: usuario.celUsr,
+          },
+          mensajesNoLeidos,
+        })
+      }
+
+      return asuntosConUsuario
+    } catch (error) {
+      console.error("[CHAT] Error obteniendo asuntos pendientes:", error.message)
+      return []
+    }
+  }
+
+  /**
+   * Obtener conversación completa con información del usuario
+   * @param {string} usuarioId - ID del usuario
+   * @param {string} tipoChat - 'ventas' o 'atencion_cliente'
+   * @param {string} asuntoId - ID del asunto (opcional)
+   * @returns {Object} Conversación completa
+   */
+  async obtenerConversacionCompleta(usuarioId, tipoChat, asuntoId = null) {
+    try {
+      // Obtener información del usuario
+      const usuario = await Usuario.findById(usuarioId).select("nombreUsr apellidoUsr emailUsr celUsr roleUsr").lean()
+
+      if (!usuario) {
+        return null
+      }
+
+      // Obtener mensajes
+      const mensajes = await this.obtenerHistorial(usuarioId, tipoChat, true, asuntoId)
+
+      // Obtener asunto si es atención al cliente
+      let asunto = null
+      if (tipoChat === "atencion_cliente" && asuntoId) {
+        const asuntoData = await AsuntoModel.findById(asuntoId).lean()
+        if (asuntoData) {
+          asunto = {
+            id: asuntoData._id,
+            titulo: asuntoData.titulo,
+            descripcion: asuntoData.descripcion,
+            estado: asuntoData.estado,
+            prioridad: asuntoData.prioridad,
+            fechaApertura: asuntoData.fechaApertura,
+            fechaResolucion: asuntoData.fechaResolucion,
+          }
+        }
+      }
+
+      return {
+        usuarioId,
+        tipoChat,
+        asuntoId,
+        usuario: {
+          nombre: `${usuario.nombreUsr} ${usuario.apellidoUsr}`,
+          email: usuario.emailUsr,
+          celular: usuario.celUsr,
+          esAdmin: usuario.roleUsr,
+        },
+        asunto,
+        mensajes,
+        totalMensajes: mensajes.length,
+      }
+    } catch (error) {
+      console.error("[CHAT] Error obteniendo conversación completa:", error.message)
+      return null
+    }
+  }
+
+  /**
+   * Marcar mensajes como leídos
+   * @param {string} usuarioId - ID del usuario
+   * @param {string} tipoChat - 'ventas' o 'atencion_cliente'
+   * @param {string} asuntoId - ID del asunto (opcional)
+   */
+  async marcarMensajesComoLeidos(usuarioId, tipoChat, asuntoId = null) {
+    try {
+      const filtro = {
+        usuarioId,
+        tipoChat,
+        leido: false,
+      }
+
+      if (tipoChat === "atencion_cliente" && asuntoId) {
+        filtro.asuntoId = asuntoId
+      }
+
+      await MensajeModel.updateMany(filtro, { leido: true })
+
+      console.log(`[CHAT] Mensajes marcados como leídos para ${usuarioId}`)
+    } catch (error) {
+      console.error("[CHAT] Error marcando mensajes como leídos:", error.message)
+    }
+  }
 }
 
 // Instancia singleton del servicio de chat con MongoDB
-export const chatService = new ChatService()
+const chatService = new ChatService()
 
-export default ChatService
+export default chatService

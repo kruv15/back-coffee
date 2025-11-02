@@ -167,4 +167,129 @@ router.delete("/historial/:usuarioId", async (req, res) => {
   }
 })
 
+/**
+ * GET /api/chat/admin/conversaciones-activas
+ * Obtener todas las conversaciones activas para el admin
+ * Query params: tipoChat (ventas|atencion_cliente|todos, opcional)
+ */
+router.get("/admin/conversaciones-activas", async (req, res) => {
+  try {
+    const { tipoChat } = req.query
+
+    const conversaciones = await chatService.obtenerConversacionesActivas(tipoChat || "todos")
+
+    res.status(200).json({
+      success: true,
+      tipoChat: tipoChat || "todos",
+      cantidad: conversaciones.length,
+      conversaciones,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error obteniendo conversaciones activas:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error obteniendo conversaciones activas",
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * GET /api/chat/admin/asuntos-pendientes
+ * Obtener todos los asuntos pendientes con información del usuario
+ */
+router.get("/admin/asuntos-pendientes", async (req, res) => {
+  try {
+    const asuntos = await chatService.obtenerAsuntosPendientesConUsuario()
+
+    res.status(200).json({
+      success: true,
+      cantidad: asuntos.length,
+      asuntos,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error obteniendo asuntos pendientes:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error obteniendo asuntos pendientes",
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * GET /api/chat/admin/conversacion/:usuarioId
+ * Obtener detalles completos de una conversación específica
+ * Query params: tipoChat (ventas|atencion_cliente), asuntoId (opcional)
+ */
+router.get("/admin/conversacion/:usuarioId", async (req, res) => {
+  try {
+    const { usuarioId } = req.params
+    const { tipoChat, asuntoId } = req.query
+
+    if (!tipoChat) {
+      return res.status(400).json({
+        success: false,
+        message: "tipoChat es requerido (ventas o atencion_cliente)",
+      })
+    }
+
+    const conversacion = await chatService.obtenerConversacionCompleta(usuarioId, tipoChat, asuntoId || null)
+
+    if (!conversacion) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversación no encontrada",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      conversacion,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error obteniendo conversación:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error obteniendo conversación",
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * POST /api/chat/admin/marcar-leido
+ * Marcar mensajes como leídos
+ */
+router.post("/admin/marcar-leido", async (req, res) => {
+  try {
+    const { usuarioId, tipoChat, asuntoId } = req.body
+
+    if (!usuarioId || !tipoChat) {
+      return res.status(400).json({
+        success: false,
+        message: "usuarioId y tipoChat son requeridos",
+      })
+    }
+
+    await chatService.marcarMensajesComoLeidos(usuarioId, tipoChat, asuntoId || null)
+
+    res.status(200).json({
+      success: true,
+      message: "Mensajes marcados como leídos",
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error marcando mensajes como leídos:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error marcando mensajes como leídos",
+      error: error.message,
+    })
+  }
+})
+
 export default router
