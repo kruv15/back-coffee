@@ -1,4 +1,4 @@
-import { chatService } from "../services/chatService.js"
+import chatService from "../services/chatService.js"
 
 /**
  * Mapa para almacenar conexiones activas
