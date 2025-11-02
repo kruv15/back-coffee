@@ -1,13 +1,48 @@
-class Mensaje {
-  constructor(id, usuarioId, tipoChat, contenido, tipo = "cliente") {
-    this.id = id
-    this.usuarioId = usuarioId
-    this.tipoChat = tipoChat // 'ventas' o 'atencion_cliente'
-    this.contenido = contenido
-    this.tipo = tipo // 'cliente' o 'admin'
-    this.timestamp = new Date().toISOString()
-    this.leido = false
-  }
-}
+import mongoose from "mongoose"
 
-export default Mensaje
+const mensajeSchema = new mongoose.Schema(
+  {
+    usuarioId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    tipoChat: {
+      type: String,
+      enum: ["ventas", "atencion_cliente"],
+      required: true,
+    },
+    asuntoId: {
+      type: String,
+      index: true,
+      default: null, // Para chat de ventas será null
+    },
+    contenido: {
+      type: String,
+      required: true,
+    },
+    tipo: {
+      type: String,
+      enum: ["cliente", "admin"],
+      required: true,
+    },
+    leido: {
+      type: Boolean,
+      default: false,
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+)
+
+// Índice compuesto para búsquedas eficientes
+mensajeSchema.index({ usuarioId: 1, tipoChat: 1, timestamp: -1 })
+mensajeSchema.index({ asuntoId: 1, timestamp: -1 })
+
+export const MensajeModel = mongoose.model("Mensaje", mensajeSchema)

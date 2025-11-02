@@ -44,7 +44,7 @@ export function configurarManejaodres(ws, wss) {
  * @param {string} wsId - ID de la conexión
  * @param {WebSocketServer} wss - Servidor WebSocket
  */
-function manejarMensaje(data, ws, wsId, wss) {
+async function manejarMensaje(data, ws, wsId, wss) {
   try {
     const evento = JSON.parse(data)
 
@@ -56,23 +56,23 @@ function manejarMensaje(data, ws, wsId, wss) {
         break
 
       case "enviar_mensaje":
-        manejarEnvioMensaje(evento, ws, wsId, wss)
+        await manejarEnvioMensaje(evento, ws, wsId, wss)
         break
 
       case "solicitar_historial":
-        manejarSolicitudHistorial(evento, ws)
+        await manejarSolicitudHistorial(evento, ws)
         break
 
       case "crear_asunto":
-        manejarCrearAsunto(evento, ws, wsId, wss)
+        await manejarCrearAsunto(evento, ws, wsId, wss)
         break
 
       case "resolver_asunto":
-        manejarResolverAsunto(evento, ws, wsId, wss)
+        await manejarResolverAsunto(evento, ws, wsId, wss)
         break
 
       case "marcar_pedido_completado":
-        manejarPedidoCompletado(evento, ws, wsId, wss)
+        await manejarPedidoCompletado(evento, ws, wsId, wss)
         break
 
       default:
@@ -115,9 +115,10 @@ function manejarConexion(evento, ws, wsId) {
 
 /**
  * Manejar envío de mensaje
+ * Ahora guarda en MongoDB en lugar de memoria
  */
-function manejarEnvioMensaje(evento, ws, wsId, wss) {
-  const { usuarioId, tipoChat, contenido } = evento
+async function manejarEnvioMensaje(evento, ws, wsId, wss) {
+  const { usuarioId, tipoChat, contenido, asuntoId } = evento
   const emisorId = mapeoConexiones.get(wsId)
 
   if (!usuarioId || !tipoChat || !contenido) {
@@ -129,68 +130,73 @@ function manejarEnvioMensaje(evento, ws, wsId, wss) {
   const conexion = conexionesActivas.get(emisorId)
   const tipoEmisor = conexion ? conexion.tipo : "desconocido"
 
-  // Guardar mensaje en la base de datos del servicio
-  const mensaje = chatService.enviarMensaje(usuarioId, tipoChat, contenido, tipoEmisor)
+  try {
+    const mensaje = await chatService.enviarMensaje(usuarioId, tipoChat, contenido, tipoEmisor, asuntoId || null)
 
-  console.log(`[Chat] Mensaje guardado: ${mensaje.id}`)
+    console.log(`[Chat] Mensaje guardado en DB: ${mensaje.id}`)
 
-  // Enviar confirmación al emisor
-  ws.send(
-    JSON.stringify({
-      tipo: "confirmacion_mensaje",
-      exito: true,
-      mensajeId: mensaje.id,
-      timestamp: mensaje.timestamp,
-    }),
-  )
+    // Enviar confirmación al emisor
+    ws.send(
+      JSON.stringify({
+        tipo: "confirmacion_mensaje",
+        exito: true,
+        mensajeId: mensaje.id,
+        timestamp: mensaje.timestamp,
+      }),
+    )
 
-  // Enviar mensaje al destinatario
-  if (tipoEmisor === "cliente") {
-    // Si es cliente, enviar al admin
-    enviarMensajeAAdmin(mensaje)
-  } else {
-    // Si es admin, enviar al cliente
-    enviarMensajeAlCliente(usuarioId, mensaje)
+    // Enviar mensaje al destinatario
+    if (tipoEmisor === "cliente") {
+      // Si es cliente, enviar al admin
+      enviarMensajeAAdmin(mensaje)
+    } else {
+      // Si es admin, enviar al cliente
+      enviarMensajeAlCliente(usuarioId, mensaje)
+    }
+  } catch (error) {
+    console.error("[Chat] Error enviando mensaje:", error)
+    enviarError(ws, "Error al guardar el mensaje")
   }
 }
 
 /**
  * Manejar solicitud de historial
+ * Ahora obtiene del MongoDB
  */
-function manejarSolicitudHistorial(evento, ws) {
-  const { usuarioId, tipoChat } = evento
-  const solicitanteId = mapeoConexiones.get(
-    Array.from(mapeoConexiones.entries()).find(([, uid]) => uid === usuarioId)?.[0],
-  )
+async function manejarSolicitudHistorial(evento, ws) {
+  const { usuarioId, tipoChat, asuntoId } = evento
 
   if (!usuarioId || !tipoChat) {
     enviarError(ws, "usuarioId y tipoChat son requeridos")
     return
   }
 
-  const conexion = conexionesActivas.get(solicitanteId)
-  const esAdmin = conexion?.tipo === "admin"
+  try {
+    const historial = await chatService.obtenerHistorial(usuarioId, tipoChat, false, asuntoId || null)
 
-  const historial = chatService.obtenerHistorial(usuarioId, tipoChat, esAdmin)
+    ws.send(
+      JSON.stringify({
+        tipo: "historial",
+        usuarioId,
+        tipoChat,
+        mensajes: historial,
+        cantidad: historial.length,
+        timestamp: new Date().toISOString(),
+      }),
+    )
 
-  ws.send(
-    JSON.stringify({
-      tipo: "historial",
-      usuarioId,
-      tipoChat,
-      mensajes: historial,
-      cantidad: historial.length,
-      timestamp: new Date().toISOString(),
-    }),
-  )
-
-  console.log(`[Chat] Historial enviado: ${historial.length} mensajes para ${usuarioId}`)
+    console.log(`[Chat] Historial enviado: ${historial.length} mensajes para ${usuarioId}`)
+  } catch (error) {
+    console.error("[Chat] Error obteniendo historial:", error)
+    enviarError(ws, "Error al obtener historial")
+  }
 }
 
 /**
  * Manejar creación de asunto (atención al cliente)
+ * Ahora guarda en MongoDB
  */
-function manejarCrearAsunto(evento, ws, wsId, wss) {
+async function manejarCrearAsunto(evento, ws, wsId, wss) {
   const { usuarioId, titulo, descripcion } = evento
 
   if (!usuarioId || !titulo || !descripcion) {
@@ -198,29 +204,35 @@ function manejarCrearAsunto(evento, ws, wsId, wss) {
     return
   }
 
-  const asunto = chatService.crearAsunto(usuarioId, titulo, descripcion)
+  try {
+    const asunto = await chatService.crearAsunto(usuarioId, titulo, descripcion)
 
-  // Confirmar al cliente
-  ws.send(
-    JSON.stringify({
-      tipo: "confirmacion_asunto",
-      exito: true,
-      asuntoId: asunto.id,
-      asunto: asunto,
-      timestamp: new Date().toISOString(),
-    }),
-  )
+    // Confirmar al cliente
+    ws.send(
+      JSON.stringify({
+        tipo: "confirmacion_asunto",
+        exito: true,
+        asuntoId: asunto.id,
+        asunto: asunto,
+        timestamp: new Date().toISOString(),
+      }),
+    )
 
-  // Notificar al admin
-  notificarAdminNuevoAsunto(asunto)
+    // Notificar al admin
+    notificarAdminNuevoAsunto(asunto)
 
-  console.log(`[Chat] Asunto creado: ${asunto.id} para usuario ${usuarioId}`)
+    console.log(`[Chat] Asunto creado: ${asunto.id} para usuario ${usuarioId}`)
+  } catch (error) {
+    console.error("[Chat] Error creando asunto:", error)
+    enviarError(ws, "Error al crear asunto")
+  }
 }
 
 /**
  * Manejar resolución de asunto (admin)
+ * Ahora actualiza MongoDB
  */
-function manejarResolverAsunto(evento, ws, wsId, wss) {
+async function manejarResolverAsunto(evento, ws, wsId, wss) {
   const { usuarioId, asuntoId } = evento
   const conexion = conexionesActivas.get(mapeoConexiones.get(wsId))
 
@@ -234,27 +246,32 @@ function manejarResolverAsunto(evento, ws, wsId, wss) {
     return
   }
 
-  const exito = chatService.marcarAsuntoComoResuelto(usuarioId, asuntoId)
+  try {
+    const exito = await chatService.marcarAsuntoComoResuelto(usuarioId, asuntoId)
 
-  ws.send(
-    JSON.stringify({
-      tipo: "confirmacion_resolucion",
-      exito,
-      asuntoId,
-      timestamp: new Date().toISOString(),
-    }),
-  )
+    ws.send(
+      JSON.stringify({
+        tipo: "confirmacion_resolucion",
+        exito,
+        asuntoId,
+        timestamp: new Date().toISOString(),
+      }),
+    )
 
-  if (exito) {
-    // Notificar al cliente que su asunto fue resuelto
-    notificarClienteAsuntoResuelto(usuarioId, asuntoId)
+    if (exito) {
+      // Notificar al cliente que su asunto fue resuelto
+      notificarClienteAsuntoResuelto(usuarioId, asuntoId)
+    }
+  } catch (error) {
+    console.error("[Chat] Error resolviendo asunto:", error)
+    enviarError(ws, "Error al resolver asunto")
   }
 }
 
 /**
  * Manejar marcación de pedido como completado
  */
-function manejarPedidoCompletado(evento, ws, wsId, wss) {
+async function manejarPedidoCompletado(evento, ws, wsId, wss) {
   const { usuarioId, pedidoId } = evento
   const conexion = conexionesActivas.get(mapeoConexiones.get(wsId))
 
@@ -267,8 +284,6 @@ function manejarPedidoCompletado(evento, ws, wsId, wss) {
     enviarError(ws, "usuarioId y pedidoId son requeridos")
     return
   }
-
-  chatService.marcarPedidoComoCompletado(usuarioId, pedidoId)
 
   ws.send(
     JSON.stringify({
