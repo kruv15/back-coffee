@@ -8,7 +8,7 @@ import { configurarManejaodres } from "./src/websocket/websocketHandler.js"
 const servidor = http.createServer(app)
 
 // Configurar servidor WebSocket
-const wss = configurarServidorWebSocket(servidor)
+const wss = configurarServidorWebSocket(servidor, "/ws");
 
 // Configurar manejadores de eventos
 wss.on("connection", (ws) => {

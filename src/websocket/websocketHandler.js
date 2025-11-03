@@ -28,6 +28,10 @@ export function configurarManejaodres(ws, wss) {
     manejarMensaje(data, ws, wsId, wss)
   })
 
+  ws.on("pong", () => { 
+    ws.isAlive = true; 
+  })
+
   ws.on("close", () => {
     manejarDesconexion(wsId)
   })
@@ -165,7 +169,7 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
     )
 
     if (tipoEmisor === "cliente") {
-      enviarMensajeAAdmins(mensaje)
+      enviarMensajeAAdmin(mensaje)
     } else if (tipoEmisor === "admin") {
       enviarMensajeAlCliente(usuarioId, mensaje)
     }
