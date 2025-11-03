@@ -97,26 +97,23 @@ async function manejarMensaje(data, ws, wsId, wss) {
  */
 function manejarConexion(evento, ws, wsId) {
   const { usuarioId, tipoUsuario } = evento
-  const tipo = tipoUsuario || evento.tipoUsuario || evento.tipo
-
-  if (!usuarioId || !tipo) {
-    enviarError(ws, "usuarioId y tipo son requeridos")
+  if (!usuarioId || !tipoUsuario) {
+    enviarError(ws, "usuarioId y tipoUsuario son requeridos")
     return
   }
 
-  // Registrar conexión
-  conexionesActivas.set(usuarioId, { tipo, ws })
+  // ✅ Guardar correctamente los mapas de conexión
+  conexionesActivas.set(usuarioId, { tipo: tipoUsuario, ws })
   mapeoConexiones.set(wsId, usuarioId)
 
-  console.log(`[WebSocket] Usuario conectado: ${usuarioId} (${tipo}) - ${wsId}`)
+  console.log(`[WebSocket] Usuario conectado: ${usuarioId} (${tipoUsuario}) - ${wsId}`)
 
-  // Confirmar conexión
   ws.send(
     JSON.stringify({
       tipo: "confirmacion_conexion",
       exito: true,
       usuarioId,
-      mensaje: `Conectado como ${tipo}`,
+      mensaje: `Conectado como ${tipoUsuario}`,
       timestamp: new Date().toISOString(),
     }),
   )
@@ -129,41 +126,51 @@ function manejarConexion(evento, ws, wsId) {
 async function manejarEnvioMensaje(evento, ws, wsId, wss) {
   const { usuarioId, tipoChat, contenido, asuntoId } = evento
   const emisorId = mapeoConexiones.get(wsId)
+  const conexion = conexionesActivas.get(emisorId)
+  let tipoEmisor = conexion ? conexion.tipo : null
+
+  // ✅ Si no está registrado, intentar deducir del evento
+  if (!tipoEmisor && evento.tipoUsuario) {
+    tipoEmisor = evento.tipoUsuario
+  }
 
   if (!usuarioId || !tipoChat || !contenido) {
     enviarError(ws, "usuarioId, tipoChat y contenido son requeridos")
     return
   }
 
-  // Determinar el tipo de quien envía (cliente o admin)
-  const conexion = conexionesActivas.get(emisorId)
-  const tipoEmisor = conexion ? conexion.tipo : "desconocido"
+  if (!tipoEmisor) {
+    enviarError(ws, "No se pudo determinar el tipo de emisor (admin o cliente)")
+    return
+  }
 
   try {
-    const mensaje = await chatService.enviarMensaje(usuarioId, tipoChat, contenido, tipoEmisor, asuntoId || null)
+    const mensaje = await chatService.enviarMensaje(
+      usuarioId,
+      tipoChat,
+      contenido,
+      tipoEmisor,
+      asuntoId || null
+    )
 
-    console.log(`[Chat] Mensaje guardado en DB: ${mensaje.id}`)
+    console.log(`[Chat] Mensaje guardado correctamente (${tipoEmisor} → ${usuarioId})`)
 
-    // Enviar confirmación al emisor
     ws.send(
       JSON.stringify({
         tipo: "confirmacion_mensaje",
         exito: true,
         mensajeId: mensaje.id,
         timestamp: mensaje.timestamp,
-      }),
+      })
     )
 
-    // Enviar mensaje al destinatario
     if (tipoEmisor === "cliente") {
-      // Si es cliente, enviar al admin
-      await enviarMensajeAAdmin(mensaje, usuarioId)
-    } else {
-      // Si es admin, enviar al cliente
+      enviarMensajeAAdmins(mensaje)
+    } else if (tipoEmisor === "admin") {
       enviarMensajeAlCliente(usuarioId, mensaje)
     }
   } catch (error) {
-    console.error("[Chat] Error enviando mensaje:", error)
+    console.error("[Chat] Error guardando mensaje:", error)
     enviarError(ws, "Error al guardar el mensaje")
   }
 }
