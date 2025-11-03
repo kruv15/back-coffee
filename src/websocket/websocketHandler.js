@@ -96,7 +96,8 @@ async function manejarMensaje(data, ws, wsId, wss) {
  * Manejar conexión inicial del cliente
  */
 function manejarConexion(evento, ws, wsId) {
-  const { usuarioId, tipo } = evento // tipo: 'cliente' o 'admin'
+  const { usuarioId, tipoUsuario } = evento
+  const tipo = tipoUsuario || evento.tipoUsuario || evento.tipo
 
   if (!usuarioId || !tipo) {
     enviarError(ws, "usuarioId y tipo son requeridos")
