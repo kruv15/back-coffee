@@ -19,7 +19,7 @@ let contadorConexiones = 0
  * @param {WebSocket} ws - Conexión WebSocket
  * @param {WebSocketServer} wss - Servidor WebSocket
  */
-export function configurarManejaodres(ws, wss) {
+export function configurarManejadores(ws, wss) {
   const wsId = `ws_${++contadorConexiones}`
 
   console.log(`[WebSocket] Nueva conexión: ${wsId}`)
