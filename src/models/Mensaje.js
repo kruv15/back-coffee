@@ -19,7 +19,7 @@ const mensajeSchema = new mongoose.Schema(
     },
     contenido: {
       type: String,
-      required: true,
+      required: false,
     },
     tipo: {
       type: String,
