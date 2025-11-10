@@ -1,6 +1,7 @@
 import { MensajeModel } from "../models/Mensaje.js"
 import { AsuntoModel } from "../models/Asunto.js"
 import Usuario from "../models/Usuario.js"
+import cloudinaryService from "./cloudinaryService.js"
 
 class ChatService {
   /**
@@ -9,10 +10,11 @@ class ChatService {
    * @param {string} tipoChat - 'ventas' o 'atencion_cliente'
    * @param {string} contenido - Contenido del mensaje
    * @param {string} tipo - 'cliente' o 'admin'
-   * @param {string} asuntoId - ID del asunto (opcional, solo para atención al cliente)
+   * @param {string} asuntoId - ID del asunto (opcional)
+   * @param {Array} archivos - Array de archivos multimedia (opcional)
    * @returns {Object} Mensaje creado
    */
-  async enviarMensaje(usuarioId, tipoChat, contenido, tipo = "cliente", asuntoId = null) {
+  async enviarMensaje(usuarioId, tipoChat, contenido, tipo = "cliente", asuntoId = null, archivos = []) {
     try {
       const mensaje = new MensajeModel({
         usuarioId,
@@ -20,6 +22,7 @@ class ChatService {
         asuntoId,
         contenido,
         tipo,
+        archivos: archivos.length > 0 ? archivos : undefined,
       })
 
       await mensaje.save()
@@ -33,12 +36,55 @@ class ChatService {
         asuntoId: mensaje.asuntoId,
         contenido: mensaje.contenido,
         tipo: mensaje.tipo,
+        archivos: mensaje.archivos,
         timestamp: mensaje.timestamp,
         leido: mensaje.leido,
       }
     } catch (error) {
       console.error("[CHAT] Error guardando mensaje:", error.message)
       throw error
+    }
+  }
+
+  /**
+   * Subir archivo y obtener información
+   * @param {Buffer} buffer - Buffer del archivo
+   * @param {string} nombreArchivo - Nombre del archivo
+   * @param {string} tipoArchivo - 'imagen' o 'video'
+   * @returns {Object} Información del archivo subido
+   */
+  async subirArchivo(buffer, nombreArchivo, tipoArchivo) {
+    try {
+      const infoArchivo = await cloudinaryService.subirArchivo(buffer, nombreArchivo, tipoArchivo)
+      console.log(`[CHAT] Archivo ${tipoArchivo} subido exitosamente: ${infoArchivo.publicId}`)
+      return infoArchivo
+    } catch (error) {
+      console.error("[CHAT] Error subiendo archivo:", error.message)
+      throw error
+    }
+  }
+
+  /**
+   * Eliminar archivo de un mensaje
+   * @param {string} mensajeId - ID del mensaje
+   * @param {string} publicId - ID público del archivo
+   * @param {string} tipoArchivo - 'imagen' o 'video'
+   */
+  async eliminarArchivoDeMensaje(mensajeId, publicId, tipoArchivo) {
+    try {
+      // Eliminar de Cloudinary
+      const eliminado = await cloudinaryService.eliminarArchivo(publicId, tipoArchivo)
+
+      if (eliminado) {
+        // Eliminar referencia de la base de datos
+        await MensajeModel.findByIdAndUpdate(mensajeId, { $pull: { archivos: { publicId } } }, { new: true })
+        console.log(`[CHAT] Archivo eliminado: ${publicId}`)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error("[CHAT] Error eliminando archivo:", error.message)
+      return false
     }
   }
 
@@ -73,6 +119,7 @@ class ChatService {
         asuntoId: msg.asuntoId,
         contenido: msg.contenido,
         tipo: msg.tipo,
+        archivos: msg.archivos,
         timestamp: msg.timestamp,
         leido: msg.leido,
       }))
@@ -343,6 +390,7 @@ class ChatService {
             contenido: ultimoMensaje.contenido,
             tipo: ultimoMensaje.tipo,
             timestamp: ultimoMensaje.timestamp,
+            archivos: ultimoMensaje.archivos,
           },
           mensajesNoLeidos,
           totalMensajes,
@@ -420,6 +468,7 @@ class ChatService {
                 contenido: ultimoMensaje.contenido,
                 tipo: ultimoMensaje.tipo,
                 timestamp: ultimoMensaje.timestamp,
+                archivos: ultimoMensaje.archivos,
               }
             : null,
           mensajesNoLeidos,

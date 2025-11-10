@@ -15,7 +15,7 @@ const mensajeSchema = new mongoose.Schema(
     asuntoId: {
       type: String,
       index: true,
-      default: null, // Para chat de ventas será null
+      default: null,
     },
     contenido: {
       type: String,
@@ -30,6 +30,40 @@ const mensajeSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    archivos: [
+      {
+        tipo: {
+          type: String,
+          enum: ["imagen", "video"],
+          required: true,
+        },
+        nombreOriginal: {
+          type: String,
+          required: true,
+        },
+        urlCloudinary: {
+          type: String,
+          required: true,
+        },
+        publicId: {
+          type: String,
+          required: true,
+        },
+        tamaño: {
+          type: Number,
+        },
+        duracion: {
+          type: Number,
+        },
+        anchoAlto: {
+          type: String,
+        },
+        subidoEn: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     timestamp: {
       type: Date,
       default: Date.now,
@@ -41,7 +75,6 @@ const mensajeSchema = new mongoose.Schema(
   },
 )
 
-// Índice compuesto para búsquedas eficientes
 mensajeSchema.index({ usuarioId: 1, tipoChat: 1, timestamp: -1 })
 mensajeSchema.index({ asuntoId: 1, timestamp: -1 })
 
