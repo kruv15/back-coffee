@@ -196,7 +196,17 @@ async function manejarEnvioMensajeConArchivos(evento, ws, wsId, wss) {
       contenido || "",
       tipoEmisor,
       asuntoId || null,
-      archivos,
+      archivos.length > 0
+        ? archivos.map((a) => ({
+            tipo: a.tipo || "imagen",
+            nombreOriginal: a.nombreOriginal || a.nombre || "archivo_sin_nombre",
+            urlCloudinary: a.urlCloudinary || a.url,
+            publicId: a.publicId,
+            tamaño: a.tamaño || 0,
+            duracion: a.duracion || null,
+            anchoAlto: a.anchoAlto || null,
+          }))
+        : undefined,
     )
 
     console.log(`[Chat] Mensaje con ${archivos.length} archivo(s) guardado correctamente`)
