@@ -156,7 +156,7 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
     )
 
     if (tipoEmisor === "cliente") {
-      enviarMensajeAAdmin(mensaje)
+      enviarMensajeAAdmin(mensaje, usuarioId)
     } else if (tipoEmisor === "admin") {
       enviarMensajeAlCliente(usuarioId, mensaje)
     }
@@ -222,7 +222,7 @@ async function manejarEnvioMensajeConArchivos(evento, ws, wsId, wss) {
     )
 
     if (tipoEmisor === "cliente") {
-      enviarMensajeAAdmin(mensaje)
+      enviarMensajeAAdmin(mensaje, usuarioId)
     } else if (tipoEmisor === "admin") {
       enviarMensajeAlCliente(usuarioId, mensaje)
     }
