@@ -1,6 +1,6 @@
 import dotenv from "dotenv"
 
-dotenv.config();
+dotenv.config()
 
 const config = {
   PORT: process.env.PORT,
@@ -15,6 +15,10 @@ const config = {
   CORS_METHODS: process.env.CORS_METHODS || "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
   CORS_ALLOWED_HEADERS: process.env.CORS_ALLOWED_HEADERS || "Origin,X-Requested-With,Content-Type,Accept,Authorization",
   CORS_CREDENTIALS: process.env.CORS_CREDENTIALS === "true" || false,
+
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
 }
 
 export default config

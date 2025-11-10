@@ -10,7 +10,6 @@ import usuarioRoutes from "./routes/usuarioRoutes.js"
 import productoRoutes from "./routes/productoRoutes.js"
 import pedidoRoutes from "./routes/pedidoRoutes.js"
 import corsRoutes from "./routes/corsRoutes.js"
-// Importar rutas de chat
 import chatRoutes from "./routes/chatRoutes.js"
 
 // Importar middlewares
@@ -26,7 +25,7 @@ app.use(helmet())
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100, // máximo 100 requests por IP
+  max: 100,
   message: {
     error: "Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.",
   },
@@ -34,8 +33,8 @@ const limiter = rateLimit({
 app.use(limiter)
 
 // Middlewares básicos
-app.use(express.json({ limit: "10mb" }))
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: "50mb" }))
+app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
 // Configuración de CORS
 const corsConfig = validateCorsConfig()
@@ -65,7 +64,7 @@ app.use("/api/pedidos", pedidoRoutes)
 app.use("/api/cors", corsRoutes)
 app.use("/api/chat", chatRoutes)
 
-// Ruta de salud para verificar que el servidor funciona
+// Ruta de salud
 app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
