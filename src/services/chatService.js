@@ -16,18 +16,29 @@ class ChatService {
    */
   async enviarMensaje(usuarioId, tipoChat, contenido, tipo = "cliente", asuntoId = null, archivos = []) {
     try {
+      const archivosNormalizados = (archivos || []).map((a) => ({
+        tipo: a.tipo || "imagen",
+        nombreOriginal: a.nombreOriginal || a.name || "archivo_sin_nombre",
+        urlCloudinary: a.urlCloudinary || a.url || "",
+        publicId: a.publicId || "",
+        tamaño: a.tamaño || 0,
+        duracion: a.duracion || null,
+        anchoAlto: a.anchoAlto || null,
+        subidoEn: new Date(),
+      }));
+
       const mensaje = new MensajeModel({
         usuarioId,
         tipoChat,
         asuntoId,
         contenido,
         tipo,
-        archivos: archivos.length > 0 ? archivos : undefined,
-      })
+        archivos: archivosNormalizados.length > 0 ? archivosNormalizados : undefined,
+      });
 
-      await mensaje.save()
+      await mensaje.save();
 
-      console.log(`[CHAT] Mensaje guardado en MongoDB: ${mensaje._id} | Usuario: ${usuarioId}`)
+      console.log(`[CHAT] Mensaje guardado en MongoDB: ${mensaje._id} | Usuario: ${usuarioId}`);
 
       return {
         id: mensaje._id,
@@ -39,10 +50,10 @@ class ChatService {
         archivos: mensaje.archivos,
         timestamp: mensaje.timestamp,
         leido: mensaje.leido,
-      }
+      };
     } catch (error) {
-      console.error("[CHAT] Error guardando mensaje:", error.message)
-      throw error
+      console.error("[CHAT] Error guardando mensaje:", error.message);
+      throw error;
     }
   }
 
