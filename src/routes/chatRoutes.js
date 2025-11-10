@@ -1,5 +1,7 @@
 import express from "express"
 import chatService from "../services/chatService.js"
+import upload from "../middlewares/multerConfig.js"
+import { validarArchivo } from "../utils/validadorArchivos.js"
 
 const router = express.Router()
 
@@ -162,6 +164,88 @@ router.delete("/historial/:usuarioId", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error limpiando historial",
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * POST /api/chat/subir-archivo
+ * Subir archivo (imagen o video) a Cloudinary
+ */
+router.post("/subir-archivo", upload.single("archivo"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No se proporcionó archivo",
+      })
+    }
+
+    // Validar archivo
+    const validacion = validarArchivo(req.file)
+    if (!validacion.valido) {
+      return res.status(400).json({
+        success: false,
+        message: validacion.error,
+      })
+    }
+
+    // Subir a Cloudinary
+    const infoArchivo = await chatService.subirArchivo(req.file.buffer, req.file.originalname, validacion.tipoArchivo)
+
+    res.status(200).json({
+      success: true,
+      message: "Archivo subido exitosamente",
+      archivo: infoArchivo,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Error subiendo archivo:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error subiendo archivo",
+      error: error.message,
+    })
+  }
+})
+
+/**
+ * DELETE /api/chat/archivo/:mensajeId/:publicId
+ * Eliminar archivo de un mensaje
+ * Query params: tipoArchivo (imagen|video)
+ */
+router.delete("/archivo/:mensajeId/:publicId", async (req, res) => {
+  try {
+    const { mensajeId, publicId } = req.params
+    const { tipoArchivo } = req.query
+
+    if (!tipoArchivo || !["imagen", "video"].includes(tipoArchivo)) {
+      return res.status(400).json({
+        success: false,
+        message: "tipoArchivo es requerido y debe ser 'imagen' o 'video'",
+      })
+    }
+
+    const eliminado = await chatService.eliminarArchivoDeMensaje(mensajeId, publicId, tipoArchivo)
+
+    if (eliminado) {
+      res.status(200).json({
+        success: true,
+        message: "Archivo eliminado exitosamente",
+        timestamp: new Date().toISOString(),
+      })
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Error al eliminar el archivo",
+      })
+    }
+  } catch (error) {
+    console.error("Error eliminando archivo:", error)
+    res.status(500).json({
+      success: false,
+      message: "Error eliminando archivo",
       error: error.message,
     })
   }

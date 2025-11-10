@@ -2,13 +2,11 @@ import chatService from "../services/chatService.js"
 
 /**
  * Mapa para almacenar conexiones activas
- * Estructura: { usuarioId: { tipo: 'cliente'|'admin', ws: WebSocket } }
  */
 export const conexionesActivas = new Map()
 
 /**
  * Mapa para rastrear a qué usuario está conectado cada cliente
- * Estructura: { wsId: usuarioId }
  */
 export const mapeoConexiones = new Map()
 
@@ -16,8 +14,6 @@ let contadorConexiones = 0
 
 /**
  * Configurar manejadores de eventos WebSocket
- * @param {WebSocket} ws - Conexión WebSocket
- * @param {WebSocketServer} wss - Servidor WebSocket
  */
 export function configurarManejadores(ws, wss) {
   const wsId = `ws_${++contadorConexiones}`
@@ -28,8 +24,8 @@ export function configurarManejadores(ws, wss) {
     manejarMensaje(data, ws, wsId, wss)
   })
 
-  ws.on("pong", () => { 
-    ws.isAlive = true; 
+  ws.on("pong", () => {
+    ws.isAlive = true
   })
 
   ws.on("close", () => {
@@ -43,10 +39,6 @@ export function configurarManejadores(ws, wss) {
 
 /**
  * Procesar mensaje recibido del cliente
- * @param {string} data - Datos recibidos
- * @param {WebSocket} ws - Conexión WebSocket
- * @param {string} wsId - ID de la conexión
- * @param {WebSocketServer} wss - Servidor WebSocket
  */
 async function manejarMensaje(data, ws, wsId, wss) {
   try {
@@ -61,6 +53,10 @@ async function manejarMensaje(data, ws, wsId, wss) {
 
       case "enviar_mensaje":
         await manejarEnvioMensaje(evento, ws, wsId, wss)
+        break
+
+      case "enviar_mensaje_con_archivos":
+        await manejarEnvioMensajeConArchivos(evento, ws, wsId, wss)
         break
 
       case "solicitar_historial":
@@ -106,7 +102,6 @@ function manejarConexion(evento, ws, wsId) {
     return
   }
 
-  // ✅ Guardar correctamente los mapas de conexión
   conexionesActivas.set(usuarioId, { tipo: tipoUsuario, ws })
   mapeoConexiones.set(wsId, usuarioId)
 
@@ -125,7 +120,6 @@ function manejarConexion(evento, ws, wsId) {
 
 /**
  * Manejar envío de mensaje
- * Ahora guarda en MongoDB en lugar de memoria
  */
 async function manejarEnvioMensaje(evento, ws, wsId, wss) {
   const { usuarioId, tipoChat, contenido, asuntoId } = evento
@@ -133,7 +127,6 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
   const conexion = conexionesActivas.get(emisorId)
   let tipoEmisor = conexion ? conexion.tipo : null
 
-  // ✅ Si no está registrado, intentar deducir del evento
   if (!tipoEmisor && evento.tipoUsuario) {
     tipoEmisor = evento.tipoUsuario
   }
@@ -149,13 +142,7 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
   }
 
   try {
-    const mensaje = await chatService.enviarMensaje(
-      usuarioId,
-      tipoChat,
-      contenido,
-      tipoEmisor,
-      asuntoId || null
-    )
+    const mensaje = await chatService.enviarMensaje(usuarioId, tipoChat, contenido, tipoEmisor, asuntoId || null)
 
     console.log(`[Chat] Mensaje guardado correctamente (${tipoEmisor} → ${usuarioId})`)
 
@@ -165,11 +152,11 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
         exito: true,
         mensajeId: mensaje.id,
         timestamp: mensaje.timestamp,
-      })
+      }),
     )
 
     if (tipoEmisor === "cliente") {
-      enviarMensajeAAdmin(mensaje)
+      enviarMensajeAAdmin(mensaje, usuarioId)
     } else if (tipoEmisor === "admin") {
       enviarMensajeAlCliente(usuarioId, mensaje)
     }
@@ -180,8 +167,73 @@ async function manejarEnvioMensaje(evento, ws, wsId, wss) {
 }
 
 /**
+ * Manejar envío de mensaje con archivos multimedia
+ */
+async function manejarEnvioMensajeConArchivos(evento, ws, wsId, wss) {
+  const { usuarioId, tipoChat, contenido, asuntoId, archivos } = evento
+  const emisorId = mapeoConexiones.get(wsId)
+  const conexion = conexionesActivas.get(emisorId)
+  let tipoEmisor = conexion ? conexion.tipo : null
+
+  if (!tipoEmisor && evento.tipoUsuario) {
+    tipoEmisor = evento.tipoUsuario
+  }
+
+  if (!usuarioId || !tipoChat || !Array.isArray(archivos) || archivos.length === 0) {
+    enviarError(ws, "usuarioId, tipoChat y archivos son requeridos")
+    return
+  }
+
+  if (!tipoEmisor) {
+    enviarError(ws, "No se pudo determinar el tipo de emisor")
+    return
+  }
+
+  try {
+    const mensaje = await chatService.enviarMensaje(
+      usuarioId,
+      tipoChat,
+      contenido || "",
+      tipoEmisor,
+      asuntoId || null,
+      archivos.length > 0
+        ? archivos.map((a) => ({
+            tipo: a.tipo || "imagen",
+            nombreOriginal: a.nombreOriginal || a.nombre || "archivo_sin_nombre",
+            urlCloudinary: a.urlCloudinary || a.url,
+            publicId: a.publicId,
+            tamaño: a.tamaño || 0,
+            duracion: a.duracion || null,
+            anchoAlto: a.anchoAlto || null,
+          }))
+        : undefined,
+    )
+
+    console.log(`[Chat] Mensaje con ${archivos.length} archivo(s) guardado correctamente`)
+
+    ws.send(
+      JSON.stringify({
+        tipo: "confirmacion_mensaje",
+        exito: true,
+        mensajeId: mensaje.id,
+        archivos: mensaje.archivos,
+        timestamp: mensaje.timestamp,
+      }),
+    )
+
+    if (tipoEmisor === "cliente") {
+      enviarMensajeAAdmin(mensaje, usuarioId)
+    } else if (tipoEmisor === "admin") {
+      enviarMensajeAlCliente(usuarioId, mensaje)
+    }
+  } catch (error) {
+    console.error("[Chat] Error guardando mensaje con archivos:", error)
+    enviarError(ws, "Error al guardar el mensaje con archivos")
+  }
+}
+
+/**
  * Manejar solicitud de historial
- * Ahora obtiene del MongoDB
  */
 async function manejarSolicitudHistorial(evento, ws) {
   const { usuarioId, tipoChat, asuntoId } = evento
@@ -213,8 +265,7 @@ async function manejarSolicitudHistorial(evento, ws) {
 }
 
 /**
- * Manejar creación de asunto (atención al cliente)
- * Ahora guarda en MongoDB
+ * Manejar creación de asunto
  */
 async function manejarCrearAsunto(evento, ws, wsId, wss) {
   const { usuarioId, titulo, descripcion } = evento
@@ -227,7 +278,6 @@ async function manejarCrearAsunto(evento, ws, wsId, wss) {
   try {
     const asunto = await chatService.crearAsunto(usuarioId, titulo, descripcion)
 
-    // Confirmar al cliente
     ws.send(
       JSON.stringify({
         tipo: "confirmacion_asunto",
@@ -238,7 +288,6 @@ async function manejarCrearAsunto(evento, ws, wsId, wss) {
       }),
     )
 
-    // Notificar al admin con información del usuario
     await notificarAdminNuevoAsunto(asunto, usuarioId)
 
     console.log(`[Chat] Asunto creado: ${asunto.id} para usuario ${usuarioId}`)
@@ -249,8 +298,7 @@ async function manejarCrearAsunto(evento, ws, wsId, wss) {
 }
 
 /**
- * Manejar resolución de asunto (admin)
- * Ahora actualiza MongoDB
+ * Manejar resolución de asunto
  */
 async function manejarResolverAsunto(evento, ws, wsId, wss) {
   const { usuarioId, asuntoId } = evento
@@ -279,7 +327,6 @@ async function manejarResolverAsunto(evento, ws, wsId, wss) {
     )
 
     if (exito) {
-      // Notificar al cliente que su asunto fue resuelto
       notificarClienteAsuntoResuelto(usuarioId, asuntoId)
     }
   } catch (error) {
@@ -314,12 +361,11 @@ async function manejarPedidoCompletado(evento, ws, wsId, wss) {
     }),
   )
 
-  // Notificar al cliente
   notificarClientePedidoCompletado(usuarioId, pedidoId)
 }
 
 /**
- * Manejar solicitud de conversaciones activas (admin)
+ * Manejar solicitud de conversaciones activas
  */
 async function manejarSolicitudConversacionesActivas(evento, ws) {
   const { tipoChat } = evento
@@ -404,11 +450,10 @@ function enviarMensajeAlCliente(usuarioId, mensaje) {
 }
 
 /**
- * Enviar mensaje a todos los admins conectados con información del usuario
+ * Enviar mensaje a todos los admins
  */
 async function enviarMensajeAAdmin(mensaje, usuarioId) {
   try {
-    // Obtener información del usuario para enviar al admin
     const conversacion = await chatService.obtenerConversacionCompleta(usuarioId, mensaje.tipoChat, mensaje.asuntoId)
 
     for (const [adminId, conexion] of conexionesActivas.entries()) {
@@ -429,11 +474,10 @@ async function enviarMensajeAAdmin(mensaje, usuarioId) {
 }
 
 /**
- * Notificar a admin sobre nuevo asunto con información del usuario
+ * Notificar a admin sobre nuevo asunto
  */
 async function notificarAdminNuevoAsunto(asunto, usuarioId) {
   try {
-    // Obtener información del usuario
     const conversacion = await chatService.obtenerConversacionCompleta(usuarioId, "atencion_cliente", asunto.id)
 
     for (const [adminId, conexion] of conexionesActivas.entries()) {
