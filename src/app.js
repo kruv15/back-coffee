@@ -7,6 +7,7 @@ import config from "./config.js"
 
 // Importar rutas
 import usuarioRoutes from "./routes/usuarioRoutes.js"
+import categoriaRoutes from "./routes/categoriaRoutes.js"
 import productoRoutes from "./routes/productoRoutes.js"
 import pedidoRoutes from "./routes/pedidoRoutes.js"
 import corsRoutes from "./routes/corsRoutes.js"
@@ -59,6 +60,7 @@ mongoose
 
 // Rutas principales
 app.use("/api/usuarios", usuarioRoutes)
+app.use("/api/categorias", categoriaRoutes)
 app.use("/api/productos", productoRoutes)
 app.use("/api/pedidos", pedidoRoutes)
 app.use("/api/cors", corsRoutes)

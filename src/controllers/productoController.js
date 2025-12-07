@@ -1,4 +1,5 @@
 import Producto from "../models/Producto.js"
+import Categoria from "../models/Categoria.js"
 import { validationResult } from "express-validator"
 
 export const productoController = {
@@ -14,8 +15,31 @@ export const productoController = {
         })
       }
 
+      const { categoria, tamanos } = req.body
+
+      const categoriaExistente = await Categoria.findById(categoria)
+      if (!categoriaExistente) {
+        return res.status(404).json({
+          success: false,
+          message: "La categoría especificada no existe",
+        })
+      }
+
+      if (tamanos && tamanos.length > 0) {
+        const nombresTamanos = tamanos.map((t) => t.nombre)
+        const nombresTamanosUnicos = new Set(nombresTamanos)
+        if (nombresTamanos.length !== nombresTamanosUnicos.size) {
+          return res.status(400).json({
+            success: false,
+            message: "Los tamaños no pueden repetirse",
+          })
+        }
+      }
+
       const nuevoProducto = new Producto(req.body)
       await nuevoProducto.save()
+
+      await nuevoProducto.populate("categoria", "nombre")
 
       res.status(201).json({
         success: true,
@@ -37,7 +61,6 @@ export const productoController = {
       const { categoria, buscar, page = 1, limit = 10 } = req.query
       const filtros = {}
 
-      // Filtro por categoría
       if (categoria) {
         filtros.categoria = categoria
       }
@@ -48,6 +71,7 @@ export const productoController = {
       }
 
       const productos = await Producto.find(filtros)
+        .populate("categoria", "nombre") // Poblar nombre de categoría
         .sort({ createdAt: -1 })
         .limit(limit * 1)
         .skip((page - 1) * limit)
@@ -76,7 +100,7 @@ export const productoController = {
   // Obtener producto por ID
   obtenerProductoPorId: async (req, res) => {
     try {
-      const producto = await Producto.findById(req.params.id)
+      const producto = await Producto.findById(req.params.id).populate("categoria", "nombre") // Poblar categoría
 
       if (!producto) {
         return res.status(404).json({
@@ -111,7 +135,33 @@ export const productoController = {
         })
       }
 
-      const producto = await Producto.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+      const { categoria, tamanos } = req.body
+
+      if (categoria) {
+        const categoriaExistente = await Categoria.findById(categoria)
+        if (!categoriaExistente) {
+          return res.status(404).json({
+            success: false,
+            message: "La categoría especificada no existe",
+          })
+        }
+      }
+
+      if (tamanos && tamanos.length > 0) {
+        const nombresTamanos = tamanos.map((t) => t.nombre)
+        const nombresTamanosUnicos = new Set(nombresTamanos)
+        if (nombresTamanos.length !== nombresTamanosUnicos.size) {
+          return res.status(400).json({
+            success: false,
+            message: "Los tamaños no pueden repetirse",
+          })
+        }
+      }
+
+      const producto = await Producto.findByIdAndUpdate(req.params.id, req.body, {
+        new: true,
+        runValidators: true,
+      }).populate("categoria", "nombre") // Poblar categoría en respuesta
 
       if (!producto) {
         return res.status(404).json({

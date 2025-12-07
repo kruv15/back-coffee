@@ -15,11 +15,10 @@ export const pedidoController = {
         })
       }
 
-      const { productos, direccionEntrega, infoAdicional  } = req.body
+      const { productos, direccionEntrega, infoAdicional } = req.body
       let total = 0
       const productosValidados = []
 
-      // Validar productos y calcular total
       for (const item of productos) {
         const producto = await Producto.findById(item.productoId)
 
@@ -37,13 +36,23 @@ export const pedidoController = {
           })
         }
 
-        const subtotal = producto.precioProd * item.cantidad
+        const tamanoBuscado = producto.tamanos.find((t) => t.nombre === item.tamano)
+        if (!tamanoBuscado) {
+          return res.status(400).json({
+            success: false,
+            message: `El tamaño "${item.tamano}" no existe para el producto ${producto.nomProd}`,
+          })
+        }
+
+        const precioDelTamano = tamanoBuscado.precio
+        const subtotal = precioDelTamano * item.cantidad
         total += subtotal
 
         productosValidados.push({
           productoId: producto._id,
           cantidad: item.cantidad,
-          precio: producto.precioProd,
+          tamano: item.tamano,
+          precio: precioDelTamano,
         })
 
         // Actualizar stock
@@ -51,7 +60,6 @@ export const pedidoController = {
         await producto.save()
       }
 
-      // Crear pedido
       const nuevoPedido = new Pedido({
         userId: req.usuario._id,
         productos: productosValidados,
