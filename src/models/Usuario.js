@@ -34,6 +34,15 @@ const usuarioSchema = new mongoose.Schema({
     minlength: [6, "La contraseña debe tener al menos 6 caracteres"],
     select: false,
   },
+  codigoRecuperacion: {
+    type: String,
+    default: null,
+    select: false,
+  },
+  fechaExpiracionRecuperacion: {
+    type: Date,
+    default: null,
+  },
   roleUsr: {
     type: Boolean,
     default: false, // false = usuario normal, true = administrador
@@ -60,6 +69,34 @@ usuarioSchema.pre("save", async function (next) {
 // Método para comparar contraseñas
 usuarioSchema.methods.compararContraseña = async function (contraseñaIngresada) {
   return await bcrypt.compare(contraseñaIngresada, this.contraseña)
+}
+
+usuarioSchema.methods.generarCodigoRecuperacion = function () {
+  // Generar código de 6 dígitos
+  const codigo = Math.floor(100000 + Math.random() * 900000).toString()
+  // Establecer expiración en 30 minutos
+  this.codigoRecuperacion = codigo
+  this.fechaExpiracionRecuperacion = new Date(Date.now() + 30 * 60 * 1000)
+  return codigo
+}
+
+usuarioSchema.methods.verificarCodigoRecuperacion = function (codigoIngresado) {
+  if (!this.codigoRecuperacion || !this.fechaExpiracionRecuperacion) {
+    return false
+  }
+
+  // Verificar si el código ha expirado
+  if (new Date() > this.fechaExpiracionRecuperacion) {
+    return false
+  }
+
+  // Comparar códigos
+  return this.codigoRecuperacion === codigoIngresado.toString()
+}
+
+usuarioSchema.methods.limpiarCodigoRecuperacion = function () {
+  this.codigoRecuperacion = null
+  this.fechaExpiracionRecuperacion = null
 }
 
 // Método para obtener datos públicos del usuario

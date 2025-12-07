@@ -2,6 +2,7 @@ import Usuario from "../models/Usuario.js"
 import jwt from "jsonwebtoken"
 import { validationResult } from "express-validator"
 import config from "../config.js"
+import { emailService } from "../services/emailService.js"
 
 export const usuarioController = {
   // Registrar usuario
@@ -144,6 +145,163 @@ export const usuarioController = {
       res.status(500).json({
         success: false,
         message: "Error al obtener usuarios",
+        error: error.message,
+      })
+    }
+  },
+
+  // Solicitar recuperación de contraseña
+  solicitarRecuperacion: async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Datos inválidos",
+          errors: errors.array(),
+        })
+      }
+
+      const { emailUsr } = req.body
+
+      // Buscar usuario por email
+      const usuario = await Usuario.findOne({ emailUsr })
+      if (!usuario) {
+        return res.status(404).json({
+          success: false,
+          message: "No existe usuario con ese email",
+        })
+      }
+
+      // Generar código de recuperación
+      const codigo = usuario.generarCodigoRecuperacion()
+      await usuario.save()
+
+      // Enviar email con código
+      const resultadoEmail = await emailService.enviarCodigoRecuperacion(usuario.emailUsr, usuario.nombreUsr, codigo)
+
+      if (!resultadoEmail.success) {
+        return res.status(500).json({
+          success: false,
+          message: "Error al enviar el código de recuperación",
+        })
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Se ha enviado un código de recuperación a tu email",
+        data: {
+          emailUsr: usuario.emailUsr,
+          mensajeEmail: resultadoEmail.message,
+        },
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Error al solicitar recuperación",
+        error: error.message,
+      })
+    }
+  },
+
+  // Verificar código de recuperación
+  verificarCodigoRecuperacion: async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Datos inválidos",
+          errors: errors.array(),
+        })
+      }
+
+      const { emailUsr, codigo } = req.body
+
+      // Buscar usuario con el código de recuperación
+      const usuario = await Usuario.findOne({ emailUsr }).select("+codigoRecuperacion +fechaExpiracionRecuperacion")
+      if (!usuario) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        })
+      }
+
+      // Verificar código
+      if (!usuario.verificarCodigoRecuperacion(codigo)) {
+        return res.status(400).json({
+          success: false,
+          message: "Código inválido o expirado",
+        })
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Código verificado correctamente",
+        data: {
+          emailUsr: usuario.emailUsr,
+          usuarioId: usuario._id,
+        },
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Error al verificar código",
+        error: error.message,
+      })
+    }
+  },
+
+  // Restablecer contraseña
+  restablecerContraseña: async (req, res) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Datos inválidos",
+          errors: errors.array(),
+        })
+      }
+
+      const { emailUsr, codigo, contraseñaNueva } = req.body
+
+      // Buscar usuario con el código de recuperación
+      const usuario = await Usuario.findOne({ emailUsr }).select("+codigoRecuperacion +fechaExpiracionRecuperacion")
+      if (!usuario) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        })
+      }
+
+      // Verificar código
+      if (!usuario.verificarCodigoRecuperacion(codigo)) {
+        return res.status(400).json({
+          success: false,
+          message: "Código inválido o expirado",
+        })
+      }
+
+      // Actualizar contraseña
+      usuario.contraseña = contraseñaNueva
+      usuario.limpiarCodigoRecuperacion()
+      await usuario.save()
+
+      // Enviar email de confirmación
+      await emailService.enviarConfirmacionCambioContraseña(usuario.emailUsr, usuario.nombreUsr)
+
+      res.status(200).json({
+        success: true,
+        message: "Contraseña actualizada exitosamente",
+        data: {
+          emailUsr: usuario.emailUsr,
+        },
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Error al restablecer contraseña",
         error: error.message,
       })
     }
