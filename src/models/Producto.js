@@ -31,14 +31,9 @@ const productoSchema = new mongoose.Schema({
         required: [true, "El precio del tamaño es requerido"],
         min: [0, "El precio no puede ser negativo"],
       },
-      _id: false, // No crear _id para subdocumentos
+      _id: false,
     },
   ],
-  precioProd: {
-    type: Number,
-    required: [true, "El precio es requerido"],
-    min: [0, "El precio no puede ser negativo"],
-  },
   stock: {
     type: Number,
     required: [true, "El stock es requerido"],

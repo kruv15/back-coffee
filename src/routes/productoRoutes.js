@@ -11,7 +11,6 @@ const validacionProducto = [
     .trim()
     .isLength({ min: 10, max: 500 })
     .withMessage("La descripción debe tener entre 10 y 500 caracteres"),
-  body("precioProd").isFloat({ min: 0 }).withMessage("El precio debe ser un número positivo"),
   body("stock").isInt({ min: 0 }).withMessage("El stock debe ser un número entero positivo"),
   body("categoria").isMongoId().withMessage("ID de categoría inválido"),
   body("imagen").trim().isURL().withMessage("La imagen debe ser una URL válida"),
