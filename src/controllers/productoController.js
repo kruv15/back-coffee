@@ -8,6 +8,8 @@ export const productoController = {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.log("🔥 BODY RECIBIDO EN BACKEND:", req.body);
+        console.log("❌ ERRORES DE VALIDACIÓN:", errors.array());
         return res.status(400).json({
           success: false,
           message: "Datos inválidos",
@@ -128,6 +130,8 @@ export const productoController = {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) {
+        console.log("🔥 BODY RECIBIDO EN BACKEND:", req.body);
+        console.log("❌ ERRORES DE VALIDACIÓN:", errors.array());
         return res.status(400).json({
           success: false,
           message: "Datos inválidos",
