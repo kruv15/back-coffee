@@ -16,7 +16,6 @@ const usuarioSchema = new mongoose.Schema({
   },
   celUsr: {
     type: String,
-    required: [true],
     trim: true,
     match: [/^[0-9]{8}$/, "El celular debe tener 8 dígitos"],
   },
@@ -30,9 +29,21 @@ const usuarioSchema = new mongoose.Schema({
   },
   contraseña: {
     type: String,
-    required: [true],
     minlength: [6, "La contraseña debe tener al menos 6 caracteres"],
     select: false,
+  },
+  googleId: {
+    type: String,
+    sparse: true,
+    unique: true,
+  },
+  googleProfilePicture: {
+    type: String,
+  },
+  authMethod: {
+    type: String,
+    enum: ["local", "google"],
+    default: "local",
   },
   roleUsr: {
     type: Boolean,
@@ -44,9 +55,12 @@ const usuarioSchema = new mongoose.Schema({
   },
 })
 
-// Middleware para hashear contraseña antes de guardar
+// Middleware para hashear contraseña antes de guardar (solo si existe)
 usuarioSchema.pre("save", async function (next) {
   if (!this.isModified("contraseña")) return next()
+
+  // Si la contraseña está vacía (usuario Google), no hashear
+  if (!this.contraseña) return next()
 
   try {
     const { default: config } = await import("../config.js")
