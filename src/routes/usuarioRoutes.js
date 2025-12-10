@@ -13,11 +13,9 @@ const validacionRegistro = [
     .isLength({ min: 2, max: 50 })
     .withMessage("El apellido debe tener entre 2 y 50 caracteres"),
   body("celUsr")
-    .trim()
-    .isLength({ min: 8, max: 8 })
-    .withMessage("El número debe tener exactamente 8 dígitos")
-    .matches(/^[67][0-9]{7}$/)
-    .withMessage("Debe comenzar con 6 o 7"),
+  .trim()
+  .isLength({ min: 8, max: 8 }).withMessage("El número debe tener exactamente 8 dígitos")
+  .matches(/^[67][0-9]{7}$/).withMessage("Debe comenzar con 6 o 7"),
   body("emailUsr").isEmail().normalizeEmail().withMessage("Email inválido"),
   body("contraseña").isLength({ min: 6 }).withMessage("La contraseña debe tener al menos 6 caracteres"),
 ]
@@ -27,12 +25,9 @@ const validacionLogin = [
   body("contraseña").notEmpty().withMessage("La contraseña es obligatoria"),
 ]
 
-const validacionGoogleLogin = [body("token").notEmpty().withMessage("Token de Google es obligatorio")]
-
 // Rutas públicas
 router.post("/registrar", validacionRegistro, usuarioController.registrar)
 router.post("/login", validacionLogin, usuarioController.login)
-router.post("/google-login", validacionGoogleLogin, usuarioController.googleLogin) // New Google login route
 
 // Rutas protegidas
 router.get("/perfil", auth, usuarioController.obtenerPerfil)
